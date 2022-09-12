@@ -1,0 +1,42 @@
+---
+  - hosts: suse1
+    ignore_errors: yes
+    ignore_unreachable: yes
+    gather_facts: no
+    tasks:
+      - name: installing patches
+        zypper:
+           name: vim
+           state: latest
+        register: uptodate
+
+      - name: print result
+        debug:
+             msg: "{{ uptodate.unreachable }}"
+
+      - name: Save the unreachable hosts
+        shell:
+             awk -vFS="#" 'BEGIN{print "{{ inventory_hostname }}"} {gsub(/.*]/,"");print $1}' >> /var/lib/awx/projects/kalakappavm/update_info.txt
+        delegate_to: localhost
+        when: "{{ uptodate.unreachable }}  == true"
+        #and not " ({{ uptodate.msg }} | regex_search('No space'))"
+
+      - name: Printing the host failed due to python error
+        shell:
+             awk -vFS="#" 'BEGIN{print "{{ inventory_hostname }}"} {gsub(/.*]/,"");print $1}' >> /var/lib/awx/projects/kalakappavm/update_info.txt
+        delegate_to: localhost
+        when: uptodate.stderr | regex_search('Fatal Python error') and uptodate.rc == -6
+        
+       - name: Printing the host with less space condition 1
+        shell:
+             awk -vFS="#" 'BEGIN{print "{{ inventory_hostname }}"} {gsub(/.*]/,"");print $1}' >> /var/lib/awx/projects/kalakappavm/update_info.txt
+        delegate_to: localhost
+        when: uptodate.stderr | regex_search('space')
+
+      - name: Save the sudo issue hosts
+        shell:
+             awk -vFS="#" 'BEGIN{print "{{ inventory_hostname }}"} {gsub(/.*]/,"");print $1}' >> /var/lib/awx/projects/kalakappavm/update_info.txt
+        delegate_to: localhost
+        when: uptodate.msg == "Missing sudo password" or uptodate.module_stdout | regex_search('must be owned by uid 0') or uptodate.msg | regex_search('Invalid/incorrect password') or uptodate.module_stderr | regex_search('Shared connection')
+
+
